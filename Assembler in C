@@ -1,0 +1,1070 @@
+//Will Daknis
+//Assembler part 8
+#define _CRT_SECURE_NO_WARNINGS  // lets us use depricated code
+
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+char ASM_FILE_NAME[ ] = "WillD8.asm";
+
+#define MAX 150			// strlen of simulators memory can be changed
+#define COL 7			// number of columns for output
+#define LINE_SIZE 80	// For c-strings
+#define TOPBITS 224
+#define MIDBITS 24
+#define ENDBITS 7
+
+//REGISTERS
+#define AXREG 0
+#define BXREG 1
+#define CXREG 2
+#define DXREG 3
+#define CONST 7
+#define POINTER 6
+#define BXADDRESS 4
+
+//commands
+#define HALT 5
+#define MOVREG 192
+#define ADD 160
+#define MOVMEM 224
+#define PUT 7
+#define CMP 96
+#define JMP 14
+#define JE 8
+#define JNE 9
+#define JB 10
+#define JBE 11
+#define JA 12
+#define JAE 13
+#define GET 6
+#define FUN 4
+#define RET 3
+
+//boolean
+#define TRUE 1
+#define FALSE 0
+
+enum operType { reg, mem, constant, arrayBx, arrayBxPlus, none };  //list of all types of operand types
+
+
+//types of registers 
+struct Registers
+{
+	int AX;
+	int BX;
+	int CX;
+	int DX;
+	int flag;
+}
+regis;
+
+typedef short int Memory;  //sets the type of memory to short int 
+Memory memory[MAX] = { 0 };   //global variable the memory of the virtual machine
+Memory address;     //globla variable the current address in the virtual machine
+Memory stackPointer;
+
+
+void runCode( ); // Executes the machine code	****NEEDS WORK***
+void splitCommand( char line[ ], char command[ ], char oper1[ ], char oper2[ ] );    // splits line of asm into it's three parts	****NEEDS WORK***
+
+void convertToMachineCode( FILE* fin );   // Converts a single line of ASM to machine code	***NEEDS WORK***
+void assembler( );           // Converts the entire ASM file and stores it in memory
+void printMemoryDump( ); // Prints memeory with commands represented as integes
+
+// Helper functions.
+int convertToNumber( char line[ ], int start ); // converts a sub-string to an int
+
+int whichReg( char regLetter );           // Returns the number of the letter registar
+void changeToLowerCase( char line[ ] );  // Changes each character to lower case
+void printMemoryDumpHex( );              // Prints memory in hexedecimal
+
+
+
+
+int main( )
+{
+	printMemoryDump( );  //displays the starting memory
+
+	assembler( );
+	runCode( );
+	printMemoryDump( );  //displays memory with final vaules
+
+	printf( "\n" );
+	system( "pause" );
+	return 0;
+}
+
+/********************   assembler   ***********************
+
+changes the assembly code to machine code and places the
+commands into the memory.
+-----------------------------------------------------------*/
+void assembler( )
+{
+	address = 0;
+	FILE* fin;      // File pointer for reading in the assembly code.
+
+	//recommend changeing so you can type in file name
+	fopen_s( &fin, ASM_FILE_NAME, "r" );
+	if ( fin == NULL )
+	{
+		printf( "Error, file didn't open\n\nExiting program...\n\n" );
+		system( "pause" );
+		exit( 1 );
+	}
+
+	for ( int i = 0; i < MAX && !feof( fin ); i++ )
+	{
+		convertToMachineCode( fin );
+	}
+}
+
+
+
+/********************   runCode   ***********************
+Executes the machine code
+
+Needs to be written
+-----------------------------------------------------------*/
+void runCode( )
+{
+	//initialization of address (to look at the beginning of the line)
+	//command and the two operands
+	address = 0;
+	int command = 0;
+	int oper1;
+	int oper2;
+	stackPointer = MAX;
+
+	//for loop to process all lines of code
+	while ( command != HALT )
+	{
+
+		//this assigns the command and operands
+		command = memory[address] & TOPBITS;
+		if ( command == 0 )
+		{
+			command = memory[address];
+		}
+		else
+		{
+			oper1 = memory[address] & MIDBITS;
+			oper1 = oper1 >> 3;
+			oper2 = memory[address] & ENDBITS;
+		}
+
+		//this tells us what to do for the movreg command
+		if ( command == MOVREG )
+		{ //must make sure the first three bits are not 0-- bipasses oper2 and goes to command
+//number = get value(oper1)
+//put value (oper1, number)
+
+			int temp = 0;
+			//this assigns oper2 with a variable or constant
+			if ( oper2 == 0 )
+			{
+				temp = regis.AX;
+			}
+			if ( oper2 == 1 )
+			{
+				temp = regis.BX;
+			}
+			if ( oper2 == 2 )
+			{
+				temp = regis.CX;
+			}
+			if ( oper2 == 3 )
+			{
+				temp = regis.DX;
+			}
+			if ( oper2 == 7 )
+			{
+				address++;
+				temp = memory[address];
+			}
+			if ( oper2 == 6 )
+			{
+				address++;
+				temp = memory[memory[address]];
+			}
+			if ( oper2 == 4 )
+			{
+				temp = memory[regis.BX];
+			}
+			if ( oper2 == 5 )
+			{
+				address++;
+				temp = memory[regis.BX + memory[address]];
+			}
+			//this assigns oper2 to a value
+			if ( oper1 == 0 )
+			{
+				regis.AX = temp;
+			}
+			if ( oper1 == 1 )
+			{
+				regis.BX = temp;
+			}
+			if ( oper1 == 2 )
+			{
+				regis.CX = temp;
+			}
+			if ( oper1 == 3 )
+			{
+				regis.DX = temp;
+			}
+			//this moves the address to the appropriate spot
+			address++;
+		}
+		//this moves the address to the right spot and will
+		//exit the program after doing so
+		else if ( command == HALT )
+		{
+			address++;
+		}
+		//this performs all the add commands
+		else if ( command == ADD )
+		{
+			int temp = 0;
+			//this assigns oper2 with a variable or constant
+			if ( oper2 == 0 )
+			{
+				temp = regis.AX;
+			}
+			if ( oper2 == 1 )
+			{
+				temp = regis.BX;
+			}
+			if ( oper2 == 2 )
+			{
+				temp = regis.CX;
+			}
+			if ( oper2 == 3 )
+			{
+				temp = regis.DX;
+			}
+			if ( oper2 == 7 )
+			{
+				address++;
+				temp = memory[address];
+			}
+			if ( oper2 == 6 )
+			{
+				address++;
+				temp = memory[memory[address]];
+			}
+			if ( oper2 == 4 )
+			{
+				temp = memory[regis.BX];
+			}
+			if ( oper2 == 5 )
+			{
+				address++;
+				temp = memory[regis.BX + memory[address]];
+			}
+
+			//this adds oper1 and the value of 
+			if ( oper1 == 0 )
+			{
+				regis.AX += temp;
+			}
+			if ( oper1 == 1 )
+			{
+				regis.BX += temp;
+			}
+			if ( oper1 == 2 )
+			{
+				regis.CX += temp;
+			}
+			if ( oper1 == 3 )
+			{
+				regis.DX += temp;
+			}
+			if ( oper1 == 4 )
+			{
+				temp = memory[regis.BX];
+			}
+			address++;
+
+
+		}
+		//this is the code for part 2
+		//specifically looking at MOV to memory
+		else if ( command == MOVMEM )
+		{
+			int temp = 0;
+			//moves to next memory address
+			address++;
+			//assigns the first operand to the correct memory location (done backwards in machine code
+			//and operand2 isn't used)
+			if ( oper1 == 0 )
+			{
+				temp = regis.AX;
+			}
+			if ( oper1 == 1 )
+			{
+				temp = regis.BX;
+			}
+			if ( oper1 == 2 )
+			{
+				temp = regis.CX;
+			}
+			if ( oper1 == 3 )
+			{
+				temp = regis.DX;
+			}
+
+			if (oper2 == 4) 
+			{ 
+				memory[regis.BX] = temp;
+			}
+			if ( oper2 == 5)
+			{
+				memory[regis.BX + memory[address]] = temp;
+				address++;
+			}
+			if ( oper2 == 6)
+			{
+				memory[memory[address]] = temp;
+				address++;
+			}
+
+		}
+
+		//this is the output for put command
+		else if ( command == PUT )
+		{
+			printf( "The value of AX is %d\n", regis.AX );
+			address++;
+		}
+
+		else if ( command == CMP )
+		{
+			int temp = 0;
+
+			if ( oper2 == 0 )
+			{
+				temp = regis.AX;
+			}
+			if ( oper2 == 1 )
+			{
+				temp = regis.BX;
+			}
+			if ( oper2 == 2 )
+			{
+				temp = regis.CX;
+			}
+			if ( oper2 == 3 )
+			{
+				temp = regis.DX;
+			}
+			if ( oper2 == 7 )
+			{
+				address++;
+				temp = memory[address];
+			}
+			if ( oper2 == 6 )
+			{
+				address++;
+				temp = memory[memory[address]];
+			}
+			if ( oper2 == 4 )
+			{
+				temp = memory[regis.BX];
+			}
+			if ( oper2 == 5 )
+			{
+				address++;
+				temp = memory[regis.BX + memory[address]];
+			}
+
+			if ( oper1 == 0 )
+			{
+				if ( regis.AX > temp )
+					regis.flag = 1;
+				if ( regis.AX == temp )
+					regis.flag = 0;
+				if ( regis.AX < temp )
+					regis.flag = -1;
+			}
+			if ( oper1 == 1 )
+			{
+				if ( regis.BX > temp )
+					regis.flag = 1;
+				if ( regis.BX == temp )
+					regis.flag = 0;
+				if ( regis.CX < temp )
+					regis.flag = -1;
+			}
+			if ( oper1 == 2 )
+			{
+				if ( regis.CX > temp )
+					regis.flag = 1;
+				if ( regis.CX == temp )
+					regis.flag = 0;
+				if ( regis.CX < temp )
+					regis.flag = -1;
+			}
+			if ( oper1 == 3 )
+			{
+				if ( regis.DX > temp )
+					regis.flag = 1;
+				if ( regis.DX == temp )
+					regis.flag = 0;
+				if ( regis.DX < temp )
+					regis.flag = -1;
+			}
+			address++;
+
+		}
+
+		else if ( command == JMP )
+		{
+			address++;
+			address = memory[address];
+		}
+		else if ( command == JE )
+		{
+			address++;
+			if ( regis.flag == 0 )
+			{
+				address = memory[address];
+			}
+			else address++;
+		}
+		else if ( command == JNE )
+		{
+			address++;
+			if ( regis.flag != 0 )
+			{
+				address = memory[address];
+			}
+			else address++;
+
+		}
+		else if ( command == JB )
+		{
+			address++;
+			if ( regis.flag == -1 )
+			{
+				address = memory[address];
+			}
+			else address++;
+		}
+		else if ( command == JBE )
+		{
+			address++;
+			if ( regis.flag == 1 || regis.flag == 0 )
+			{
+				address = memory[address];
+			}
+			else address++;
+		}
+		else if ( command == JA )
+		{
+			address++;
+			if ( regis.flag == 1 )
+			{
+				address = memory[address];
+			}
+			else address++;
+		}
+		else if ( command == JAE )
+		{
+			if ( regis.flag == -1 || regis.flag == 0 )
+			{
+				address = memory[address];
+			}
+			else address++;
+		}
+		else if ( command == RET )
+		{
+			regis.AX = memory[stackPointer];
+			regis.BX = memory[stackPointer + 1];
+			regis.CX = memory[stackPointer + 2];
+			regis.DX = memory[stackPointer + 3];
+			regis.flag = memory[stackPointer + 4];
+			address = memory[stackPointer + 5];
+			stackPointer += 6;
+
+		}
+		else if ( command == FUN )
+		{
+
+			int paramLocation = memory[address + 1] - 1;
+			int paramNums = address + 2;
+			memory[paramLocation] = paramNums;
+
+			//get values on stack
+			stackPointer -= 6;
+			memory[stackPointer] = regis.AX;
+			memory[stackPointer + 1] = regis.BX;
+			memory[stackPointer + 2] = regis.CX;
+			memory[stackPointer + 3] = regis.DX;
+			memory[stackPointer + 4] = regis.flag;
+			memory[stackPointer + 5] = memory[address + 2] + address + 4;
+
+			address = memory[address + 1];
+		}
+		else if ( command == GET )
+		{
+			int value;
+			printf( "Enter a Value: " );
+			scanf( "%d", &value );
+			regis.AX = value;
+			address++;
+		}
+
+
+		printMemoryDump( );
+		system( "pause" );
+
+	}
+}
+
+/********************   splitCommand   ***********************
+splits line of asm into it's three parts
+
+Needs work
+-----------------------------------------------------------*/
+void splitCommand( char line[ ], char command[ ], char oper1[ ], char oper2[ ] )
+{
+	printf( "%s", line );
+	char* spacePtr = strchr( line, ' ' );  //the pointer where the first space occures
+
+	int index;
+	if ( spacePtr == NULL )  //no space
+	{
+		strcpy( command, line );
+		oper1[0] = '\0';
+		oper2[0] = '\0';
+	}
+	else
+	{
+		index = (int)(spacePtr - line);  //the differnce between the start point and the space
+
+		printf( "\nIndex is: %d", index );
+		if ( index < 1 || index > 3 )
+		{
+			printf( "\a\a\tnumber not in the range\n" );
+			system( "pause" );
+			exit( 1 );    // This is temporary. You must find a way to deal with index out of bounds.
+		}
+
+		strncpy( command, line, index + 1 );  // move the command into the command variable
+		command[index + 1] = '\0';				// add the string stopper
+//initializes command
+		command[index + 1] = '\0';
+		//assigns operand1 to the midbits
+		line += index + 1;
+		spacePtr = strchr( line, ' ' );
+		if ( spacePtr != NULL )
+		{
+			index = (int)(spacePtr - line);
+			strncpy( oper1, line, index + 1 );
+			oper1[index + 1] = '\0';
+			line += index + 1;
+		}
+
+		//assigns operand2 to the end bits
+		// (line[0] == '[') {
+			//li[0] = '0';
+		//
+		strcpy( oper2, line );
+		oper2[strlen( line ) - 1] = '\0';
+		printf( "%s", oper2 );
+
+	}
+	printf( "\nCommand = %s^ %s^ %s^", command, oper1, oper2 );
+
+}
+
+
+
+
+/********************   convertToMachineCode   ***********************
+Converts a single line of ASM to machine code
+
+Needs work
+---------------------------------------------------------------------*/
+void convertToMachineCode( FILE* fin )
+{
+	if ( address == 50 )
+	{
+		printf( "" );
+	}
+	char line[LINE_SIZE];       // full command
+	char command[LINE_SIZE];    // the asm commmand
+
+	char oper1[LINE_SIZE], oper2[LINE_SIZE]; // the two operands, could be empty
+	int machineCode = 0;            // One line of converted asm code from the file
+
+	fgets( line, LINE_SIZE, fin );        // Takes one line from the asm file
+	changeToLowerCase( line );
+
+
+	if ( line[0] == 'f' )
+	{
+		int value;    //the memory location you want to move to
+		char* token;  //up for strtok command
+		char strValue[25];  //temporary string for a value
+		int numParam; //the number of parameters
+
+		token = strtok( line, " " ); //the command FUN
+		memory[address] = FUN;
+		address++;
+
+		token = strtok( NULL, " " ); //find the next space
+		strcpy( strValue, token );  // get the next characters
+		value = atoi( strValue + 1 );  //skip the opening 
+		memory[address] = value;
+		address++;
+
+		token = strtok( NULL, " " );
+		strcpy( strValue, token );
+		numParam = atoi( strValue );
+		memory[address] = numParam;
+		address++;
+
+		for ( int i = 0; i < numParam; i++ )
+		{
+			token = strtok( NULL, " " );
+			strcpy( strValue, token );
+			if ( strValue[0] == '[' )
+			{
+				value = atoi( strValue + 1 );  //skip over [
+			}
+			else
+			{
+				value = atoi( strValue );
+			}
+			memory[address] = value;
+			address++;
+		}
+		address++; //blank line after the function
+	}
+	else
+	{
+		//printf("A %c, %c\n", oper1[0], oper1[1]);
+		splitCommand( line, command, oper1, oper2 );
+		printf( "Processing Command!\n" );
+
+
+		//initializes the operands to 0
+		int oper1val = 0;
+		int oper2val = 0;
+
+		//tells us what to do for the different variables that 
+		//could be in operand1 and bitshifts pointer to look at 
+		//operand2
+		if ( oper1[0] == 'a' )
+		{
+			oper1val = AXREG << 3;
+		}
+		else if ( oper1[0] == 'b' )
+		{
+			oper1val = BXREG << 3;
+		}
+		else if ( oper1[0] == 'c' )
+		{
+			oper1val = CXREG << 3;
+		}
+		else if ( oper1[0] == 'd' )
+		{
+			oper1val = DXREG << 3;
+		}
+
+
+
+		//tells us what to assign operand2 for the 4 variables and 
+		//constants
+		if ( oper2[0] == 'a' )           //pass in oper2    return oper2 value    prototype at the top of code 
+		{
+			oper2val = AXREG;
+		}
+		else if ( oper2[0] == 'b' )
+		{
+			oper2val = BXREG;
+		}
+		else if ( oper2[0] == 'c' )
+		{
+			oper2val = CXREG;
+		}
+		else if ( oper2[0] == 'd' )
+		{
+			oper2val = DXREG;
+		}
+		else if ( oper2[0] == '[' )
+		{
+			if ( oper2[1] == 'b' )
+			{ 
+				if ( oper2[3] == '+' )
+				{
+					oper2val = 5;
+				}
+				else
+				{
+					oper2val = 4;
+				}
+			}
+			else
+			{
+				oper2val = 6;
+			}
+		}
+		else
+		{
+			oper2val = 7;
+		}
+
+
+		if ( command[0] == 'h' )  //halt
+		{
+			memory[address] = HALT;
+			address++;
+		}
+		//this deals with movreg and movmem 
+		else if ( command[0] == 'm' )  //move into a register
+		{		//below is the code specified for movmem which is backwards in machine code
+			if ( oper1[0] == '[' )
+			{
+				char* newPointer; //new pointer to bypass first bracket
+				int num = MOVMEM;
+				if ( oper1[1] == 'b' )
+				{
+					num += (oper2val << 3) + BXADDRESS;
+					memory[address] = num; //assigns the binary number to a memory locations
+					address++;
+				}
+				else
+				{
+					num += (oper2val << 3) + POINTER; //assigns a number to the line of asm code
+					memory[address] = num; //assigns the binary number to a memory locations
+					newPointer = oper1 + 1; //this gets rid of opening bracket
+					int value = atoi( newPointer ); //this assigns the desired memory location to a number
+					address++;
+					memory[address] = value; //assigns the number value to the correct memory location
+					address++;
+				}
+			}
+
+			else
+			{
+				int num = MOVREG;
+				num = num + oper1val + oper2val;
+				memory[address] = num;
+				address++;
+				if ( oper2val == 7 ) //this deals with constants
+				{
+					memory[address] = atoi( oper2 );
+					address++;
+				}
+				if ( oper2val == 6 ) //this was inserted to convert for the put command
+				{
+					memory[address] = convertToNumber( oper2, 1 );
+					address++;
+				}
+				if ( oper2val == 5 )
+				{
+					memory[address] = convertToNumber( oper2, 4 );
+						address++;
+				}
+
+			}
+
+		}
+		//this is what the machine converts for add command
+		else if ( command[0] == 'a' )
+		{
+			int num = ADD;
+			num = num + oper1val + oper2val;
+			memory[address] = num;
+			address++;
+			if ( oper2val == 7 )
+			{
+				memory[address] = atoi( oper2 );
+				address++;
+			}
+			if ( oper2val == 6 )
+			{
+				memory[address] = convertToNumber( oper2, 1 );
+				address++;
+			}
+			if ( oper2val == 5 )
+			{
+				memory[address] = convertToNumber( oper2, 4 );
+				address++;
+			}
+		}
+		//this is what the machine converts for a put command
+		else if ( command[0] == 'p' )
+		{
+			int num = PUT;
+			memory[address] = num;
+			address++;
+		}
+		//the code for when command is cmp put below
+		else if ( command[0] == 'c' )
+		{
+			int num = CMP;
+			num = num + oper1val + oper2val;
+			memory[address] = num;
+			address++;
+			if ( oper2val == 7 )
+			{
+				memory[address] = atoi( oper2 );
+				address++;
+			}
+			if ( oper2val == 6 )
+			{
+				memory[address] = convertToNumber( oper2, 1 );
+				address++;
+			}
+			if ( oper2val == 5 )
+			{
+				memory[address] = convertToNumber( oper2, 4 );
+				address++;
+			}
+		}
+		else if ( command[0] == 'j' ) //nested if statements for each jmp command 
+		{
+			int num;
+			if ( command[1] == 'm' )
+			{
+				num = JMP;
+				memory[address] = num;
+				address++;
+				memory[address] = convertToNumber( oper2, 1 );
+				address++;
+			}
+			else if ( command[1] == 'e' )
+			{
+				num = JE;
+				memory[address] = num;
+				address++;
+				memory[address] = convertToNumber( oper2, 1 );
+				address++;
+			}
+			else if ( command[1] == 'n' )
+			{
+				num = JNE;
+				memory[address] = num;
+				address++;
+				memory[address] = convertToNumber( oper2, 1);
+				address++;
+			}
+			else if ( command[1] == 'a' )
+			{
+				if ( command[2] == 'e' )
+				{
+					num = JAE;
+					memory[address] = num;
+					address++;
+					memory[address] = convertToNumber( oper2, 1 );
+					address++;
+				}
+				else
+					num = JA;
+				memory[address] = num;
+				address++;
+				memory[address] = convertToNumber( oper2, 1 );
+				address++;
+			}
+			else if ( command[1] == 'b' )
+			{
+				if ( command[2] == 'e' )
+				{
+					num = JBE;
+					memory[address] = num;
+					address++;
+					memory[address] = convertToNumber( oper2, 1 );
+					address++;
+				}
+				else
+					num = JB;
+				memory[address] = num;
+				address++;
+				memory[address] = convertToNumber( oper2, 1 );
+				address++;
+			}
+		}
+		else if ( command[0] == 'g' )
+		{
+			int num = GET;
+			memory[address] = num;
+			address++;
+		}
+		else if ( command[0] == 'r' )
+		{
+			memory[address] = RET;
+			address++;
+		}
+		//this is for lines in the asm file that just contain a number and don't have a command or registers
+		else
+		{
+			memory[address] = atoi( command );
+			address++;
+		}
+
+	}
+
+	printf( "\n" );
+	printMemoryDump( );
+}
+
+
+/****************************   printMemoryDump   ********************************
+prints memory by number
+MAX is the amount of elements in the memory array (Vicki used 100)
+COL is the number of columns that are to be displayed (Vicki used 7; was originally called COLUMNS)
+---------------------------------------------------------------------------------*/
+void printMemoryDump( )
+{
+	int numRows = MAX / COL + 1;    //number of rows that will print
+	int carryOver = MAX % COL;      //number of columns on the bottom row
+
+	int location;   //the current location being called
+	for ( int row = 0; row < numRows; row++ )
+	{
+		location = row;
+		//print(setw( 3 ) << location << "." << setw( 5 ) << memory[location];
+		for ( int column = 0; location < MAX && column < COL; column++ )
+		{
+			if ( !(numRows - 1 == row && carryOver - 1 < column) )
+			{
+				printf( "%5d.%5d", location, memory[location] );
+				location += (numRows - (carryOver - 1 < column));
+			}
+		}
+		printf( "\n" );
+	}
+
+	printf( "\n" );
+	printf( "AX:%d\t", regis.AX );
+	printf( "BX:%d\t", regis.BX );
+	printf( "CX:%d\t", regis.CX );
+	printf( "DX:%d\t", regis.DX );
+	printf( "\n\n" );
+	printf( "Instruction: %d\n", address );
+	printf( "Flag: %d", regis.flag );
+	printf( "\n\n" );
+}
+
+
+//-----------------------------------------------------------------------------
+//**************   Helper functions   *****************************************
+// may be deleted
+//-----------------------------------------------------------------------------
+
+
+/***************************** ConvertToNumber ******************************
+takes in a line (string) and converts the characters that they represent.
+* line - is the string of assembly code to convert
+* start - the value of the location of the first digit (or - sign) of the line being converted
+example: %$[543] start should be 3
+it starts at the beginning of number and it passed
+back at the next location
+* returns: the integer value of the digits in the code
+---------------------------------------------------------------------------------*/
+int convertToNumber( char line[ ], int start )
+{
+	char number[16];
+	int negative = FALSE;
+	int i = 0;
+	int value;
+
+	if ( line[start] == '-' )
+	{
+		++start;
+		negative = TRUE;
+	}
+	while ( i < 16 && strlen( line ) > start && isdigit( line[start] ) )
+	{
+		number[i] = line[start];
+		i++;
+		++start;
+	}
+	number[i] = '\0';
+	value = atoi( number );
+	if ( negative == TRUE )
+	{
+		value = -value;// *-1;
+	}
+	return value;
+}
+
+/*********************   whichReg   *************************
+changes the letter of the registar to a number.
+------------------------------------------------------------*/
+int whichReg( char regLetter )
+{
+	if ( regLetter == 'a' )
+	{
+		return AXREG;
+	}
+	else if ( regLetter == 'b' )
+	{
+		return BXREG;
+	}
+	else if ( regLetter == 'c' )
+	{
+		return CXREG;
+	}
+	else if ( regLetter == 'd' )
+	{
+		return DXREG;
+	}
+	return -1;  //something went wrong if -1 is returned
+}
+
+/*********************   changeToLowerCase   ********************
+Changes each character to lower case
+----------------------------------------------------------------*/
+void changeToLowerCase( char line[ ] )
+{
+	int index = 0;
+	while ( index < strlen( line ) )
+	{
+		line[index] = tolower( line[index] );
+		index++;
+	}
+}
+
+/*********************   changeToLowerCase   ********************
+Prints memory in hexedecimal
+----------------------------------------------------------------*/
+void printMemoryDumpHex( )
+{
+	int numRows = MAX / COL + 1;    //number of rows that will print
+	int carryOver = MAX % COL;      //number of columns on the bottom row
+	int location;   //the current location being called
+	for ( int row = 0; row < numRows; row++ )
+	{
+		location = row;
+		//print(setw( 3 ) << location << "." << setw( 5 ) << memory[location];
+		for ( int column = 0; location < MAX && column < COL; column++ )
+		{
+			if ( !(numRows - 1 == row && carryOver - 1 < column) )
+			{
+				printf( "%5d.%3x", location, memory[location] );
+				location += (numRows - (carryOver - 1 < column));
+			}
+		}
+		printf( "\n" );
+	}
+
+	printf( "\n" );
+	printf( "AX:%d\t", regis.AX );
+	printf( "BX:%d\t", regis.BX );
+	printf( "CX:%d\t", regis.CX );
+	printf( "DX:%d\t", regis.DX );
+	printf( "\n\n" );
+	printf( "Instruction: %d\n", address );
+	printf( "Flag: %d", regis.flag );
+
+	printf( "\n\n" );
+}
