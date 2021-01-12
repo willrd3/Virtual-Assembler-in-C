@@ -1,0 +1,31 @@
+mov dx 10
+mov cx 0
+mov bx 0
+fun [30] 3 0 100 [65]
+add cx [65]
+add bx 1
+cmp dx bx
+ja [6]
+mov ax cx
+put
+mov [80] ax
+halt
+
+
+
+
+
+mov bx [29]
+add bx 1
+mov cx [bx]
+add bx 1
+mov dx [bx]
+add bx 1
+mov bx [bx]
+get
+cmp ax cx
+jb [41]
+cmp ax dx
+ja [41]
+mov [bx] ax
+ret
